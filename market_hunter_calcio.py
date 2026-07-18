@@ -63,8 +63,8 @@ def fetch_odds():
     url = "https://api.the-odds-api.com/v4/sports/soccer/odds/"
     params = {
         "apiKey": API_KEY,
-        "regions": "eu",          # bookmaker europei
-        "markets": "h2h",         # solo vincitore (1X2)
+        "regions": "eu",
+        "markets": "h2h",
         "dateFormat": "iso",
         "oddsFormat": "decimal",
         "includeLinks": "false",
@@ -86,7 +86,6 @@ def fetch_odds():
             bookmakers = game.get("bookmakers", [])
             if not bookmakers:
                 continue
-            # preferisce Bet365, altrimenti il primo disponibile
             bk = None
             for b in bookmakers:
                 if b["key"] == "bet365":
@@ -154,7 +153,6 @@ def check_crashes(state, current_matches, now):
         old_home = prev["odd_home"]
         old_away = prev["odd_away"]
 
-        # Crollo Home
         if old_home > MIN_STARTING_ODD and m["odd_home"] < MAX_CRASH_ODD:
             drop = (old_home - m["odd_home"]) / old_home
             if drop >= CRASH_THRESHOLD_PERCENT / 100.0:
@@ -170,7 +168,7 @@ def check_crashes(state, current_matches, now):
                     "predicted": m["home"],
                     "time": now.strftime("%H:%M:%S")
                 })
-        # Crollo Away
+
         if old_away > MIN_STARTING_ODD and m["odd_away"] < MAX_CRASH_ODD:
             drop = (old_away - m["odd_away"]) / old_away
             if drop >= CRASH_THRESHOLD_PERCENT / 100.0:
@@ -203,7 +201,6 @@ def save_bet(bets, alert):
     })
     return bets
 
-# ------------------------- MAIN -------------------------
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
     logging.info("Market Hunter Calcio (Odds API) started")
