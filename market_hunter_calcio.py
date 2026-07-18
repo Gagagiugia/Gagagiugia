@@ -23,9 +23,8 @@ MAX_CRASH_ODD = 1.50
 BOOKMAKER_ID = 1   # 1xBet (o 8 per Bet365)
 BET_ID = 1         # Match Winner (1X2)
 
-# Leghe minori di calcio (attive in estate? meglio mettere anche scandinave)
 TARGET_LEAGUES = [
-    135,   # Serie A (tanto per test, poi puoi rimuoverla)
+    135,   # Serie A (solo per test, togli se vuoi)
     136,   # Serie B
     137,   # Serie C
     138,   # Serie D
