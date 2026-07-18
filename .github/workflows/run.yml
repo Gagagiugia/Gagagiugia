@@ -34,7 +34,7 @@ jobs:
           API_KEY: ${{ secrets.API_KEY }}
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python market_hunter_basket.py
+        run: python market_hunter_calcio.py
 
       - name: Save updated state cache
         uses: actions/cache/save@v4
