@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Market Hunter Calcio – GitHub Actions Edition
-Rileva crolli di quota su campionati minori e invia alert Telegram.
+Market Hunter Calcio – The Odds API Edition
+Ogni 15 minuti (solo weekend) controlla le quote di campionati minori e invia alert Telegram.
 """
 
 import os
@@ -10,123 +10,113 @@ import logging
 import requests
 from datetime import datetime, date, timedelta
 
-# ------------------------- CONFIGURAZIONE -------------------------
 API_KEY = os.environ["API_KEY"]
 TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
 TELEGRAM_CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
 
-MAX_HOURS_CRASH_WINDOW = 0.5   # 30 minuti (così confrontiamo due rilevazioni consecutive)
-CRASH_THRESHOLD_PERCENT = 25   # resta al 25% o scendi a 20 se vuoi più sensibilità
+# Impostazioni
+CRASH_THRESHOLD_PERCENT = 25
+MAX_HOURS_CRASH_WINDOW = 0.5        # 30 minuti
 MIN_STARTING_ODD = 1.50
 MAX_CRASH_ODD = 1.50
 
-BOOKMAKER_ID = 8   # 1xBet (o 8 per Bet365)
-BET_ID = 1         # Match Winner (1X2)
-
-TARGET_LEAGUES = [
-    135,   # Serie A (solo per test, togli se vuoi)
-    136,   # Serie B
-    137,   # Serie C
-    138,   # Serie D
-    141,   # Campionato Primavera 1
-    142,   # Campionato Primavera 2
-    197,   # National League (Inghilterra)
-    198,   # National League North
-    199,   # National League South
-    383,   # Segunda B (Spagna)
-    384,   # Tercera Division
-    127,   # Regionalliga Südwest (Germania)
-    128,   # Regionalliga West
-    130,   # Regionalliga Nord
-    131,   # Regionalliga Bayern
-    62,    # National 1 (Francia)
-    64,    # National 2
-    65,    # National 3
-    471,   # Campeonato de Portugal
-    74,    # Brasileiro Serie C
-    75,    # Brasileiro Serie D
-    129,   # Primera Nacional (Argentina)
-    130,   # Primera B Metropolitana
-    131,   # Primera C
-    132,   # Primera D
-    # --- Campionati estivi scandinavi ---
-    40,    # Allsvenskan (Svezia)
-    41,    # Superettan
-    72,    # Eliteserien (Norvegia)
-    73,    # 1. Divisjon
-    244,   # Veikkausliiga (Finlandia)
-    245,   # Ykkönen
-    360,   # Meistriliiga (Estonia)
-    365,   # Virsliga (Lettonia)
+# Campionati da monitorare (The Odds API)
+TARGET_SPORT_KEYS = [
+    "soccer_italy_serie_c",
+    "soccer_italy_serie_d",
+    "soccer_england_national_league",
+    "soccer_spain_segunda_b",
+    "soccer_germany_regionalliga",
+    "soccer_france_national",
+    "soccer_brazil_campeonato_serie_c",
+    "soccer_brazil_campeonato_serie_d",
+    "soccer_argentina_primera_nacional",
+    "soccer_argentina_primera_b",
+    "soccer_argentina_primera_c",
+    "soccer_sweden_allsvenskan",
+    "soccer_sweden_superettan",
+    "soccer_norway_eliteserien",
+    "soccer_finland_veikkausliiga",
+    "soccer_estonia_meistriliiga",
+    "soccer_latvia_virsliga",
 ]
 
-# ------------------------- FUNZIONI -------------------------
-def send_telegram(text: str):
+def send_telegram(text):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     try:
-        requests.post(url, json={
-            "chat_id": TELEGRAM_CHAT_ID, "text": text, "parse_mode": "Markdown"
-        }, timeout=10)
+        requests.post(url, json={"chat_id": TELEGRAM_CHAT_ID, "text": text, "parse_mode": "Markdown"}, timeout=10)
     except Exception as e:
         logging.error(f"Telegram error: {e}")
 
-def load_json(filename: str, default=None):
+def load_json(filename, default=None):
     try:
-        with open(filename, "r") as f:
+        with open(filename) as f:
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         return default if default is not None else {}
 
-def save_json(filename: str, data):
+def save_json(filename, data):
     with open(filename, "w") as f:
         json.dump(data, f, indent=2)
 
 def fetch_odds():
-    today = date.today().strftime("%Y-%m-%d")
-    url = "https://v3.football.api-sports.io/odds"
-    headers = {
-        "x-apisports-key": API_KEY,
-        "x-apisports-host": "v3.football.api-sports.io"
+    url = "https://api.the-odds-api.com/v4/sports/soccer/odds/"
+    params = {
+        "apiKey": API_KEY,
+        "regions": "eu",          # bookmaker europei
+        "markets": "h2h",         # solo vincitore (1X2)
+        "dateFormat": "iso",
+        "oddsFormat": "decimal",
+        "includeLinks": "false",
+        "includeSids": "false"
     }
-    params = {"date": today, "bookmaker": BOOKMAKER_ID, "bet": BET_ID}
     try:
-        resp = requests.get(url, headers=headers, params=params, timeout=15)
+        resp = requests.get(url, params=params, timeout=15)
         if resp.status_code != 200:
-            logging.error(f"API HTTP {resp.status_code}: {resp.text}")
+            logging.error(f"HTTP {resp.status_code}: {resp.text}")
             return []
         data = resp.json()
-        if data.get("errors"):
-            logging.error(f"API errors: {data['errors']}")
-            return []
         matches = []
-        for item in data.get("response", []):
-            league = item.get("league", {})
-            #if league.get("id") not in TARGET_LEAGUES:
+        for game in data:
+            sport_key = game.get("sport_key")
+            if sport_key not in TARGET_SPORT_KEYS:
                 continue
-            if len(matches) < 5:
-    logging.info(f"DEBUG: {league.get('name')} - {home} vs {away}")
-            fixture = item.get("fixture", {})
-            fixture_id = fixture.get("id")
-            if not fixture_id:
+            home = game["home_team"]
+            away = game["away_team"]
+            bookmakers = game.get("bookmakers", [])
+            if not bookmakers:
                 continue
-            home = item.get("teams", {}).get("home", {}).get("name", "?")
-            away = item.get("teams", {}).get("away", {}).get("name", "?")
-            try:
-                odds_values = item["bookmakers"][0]["bets"][0]["values"]
-                odd_home = next((float(o["odd"]) for o in odds_values if o["value"] == "Home"), None)
-                odd_draw = next((float(o["odd"]) for o in odds_values if o["value"] == "Draw"), None)
-                odd_away = next((float(o["odd"]) for o in odds_values if o["value"] == "Away"), None)
-            except (IndexError, KeyError, StopIteration):
+            # preferisce Bet365, altrimenti il primo disponibile
+            bk = None
+            for b in bookmakers:
+                if b["key"] == "bet365":
+                    bk = b
+                    break
+            if not bk:
+                bk = bookmakers[0]
+
+            markets = bk.get("markets", [])
+            if not markets:
                 continue
+            h2h = markets[0]
+            outcomes = h2h.get("outcomes", [])
+            odd_home = odd_away = odd_draw = None
+            for o in outcomes:
+                if o["name"] == home:
+                    odd_home = o["price"]
+                elif o["name"] == away:
+                    odd_away = o["price"]
+                elif o["name"] == "Draw":
+                    odd_draw = o["price"]
             if odd_home and odd_away:
                 matches.append({
-                    "fixture_id": fixture_id,
+                    "fixture_id": game["id"],
                     "home": home,
                     "away": away,
-                    "league_id": league["id"],
-                    "league_name": league.get("name", "?"),
+                    "league": game["sport_title"] + " - " + game.get("sport_key", ""),
                     "odd_home": odd_home,
-                    "odd_away": odd_away
+                    "odd_away": odd_away,
+                    "odd_draw": odd_draw
                 })
         return matches
     except Exception as e:
@@ -136,14 +126,14 @@ def fetch_odds():
 def check_crashes(state, current_matches, now):
     alerts = []
     new_state = {}
-    threshold_time = now - timedelta(minutes=MAX_MINUTES_CRASH_WINDOW)
+    threshold_time = now - timedelta(hours=MAX_HOURS_CRASH_WINDOW)
 
     for m in current_matches:
-        fid = str(m["fixture_id"])
+        fid = m["fixture_id"]
         new_state[fid] = {
             "home": m["home"],
             "away": m["away"],
-            "league": m["league_name"],
+            "league": m["league"],
             "odd_home": m["odd_home"],
             "odd_away": m["odd_away"],
             "timestamp": now.isoformat()
@@ -158,7 +148,7 @@ def check_crashes(state, current_matches, now):
         except (ValueError, KeyError):
             continue
 
-        if (now - prev_time) > timedelta(minutes=MAX_MINUTES_CRASH_WINDOW):
+        if (now - prev_time) > timedelta(hours=MAX_HOURS_CRASH_WINDOW):
             continue
 
         old_home = prev["odd_home"]
@@ -172,7 +162,7 @@ def check_crashes(state, current_matches, now):
                     "fixture_id": fid,
                     "home": m["home"],
                     "away": m["away"],
-                    "league": m["league_name"],
+                    "league": m["league"],
                     "side": "Home",
                     "old_odd": old_home,
                     "new_odd": m["odd_home"],
@@ -188,7 +178,7 @@ def check_crashes(state, current_matches, now):
                     "fixture_id": fid,
                     "home": m["home"],
                     "away": m["away"],
-                    "league": m["league_name"],
+                    "league": m["league"],
                     "side": "Away",
                     "old_odd": old_away,
                     "new_odd": m["odd_away"],
@@ -196,7 +186,6 @@ def check_crashes(state, current_matches, now):
                     "predicted": m["away"],
                     "time": now.strftime("%H:%M:%S")
                 })
-
     return alerts, new_state
 
 def save_bet(bets, alert):
@@ -217,7 +206,7 @@ def save_bet(bets, alert):
 # ------------------------- MAIN -------------------------
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
-    logging.info("Market Hunter Calcio started")
+    logging.info("Market Hunter Calcio (Odds API) started")
 
     state = load_json("state.json")
     bets = load_json("bets.json", [])
