@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Market Hunter Basket – GitHub Actions Edition
-Rileva crolli di quota e invia alert Telegram. Salva lo stato nella cache di GitHub.
+Market Hunter Calcio – GitHub Actions Edition
+Rileva crolli di quota su campionati minori e invia alert Telegram.
 """
 
 import os
@@ -15,28 +15,50 @@ API_KEY = os.environ["API_KEY"]
 TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
 TELEGRAM_CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
 
-CRASH_THRESHOLD_PERCENT = 25      # calo percentuale minimo
-MAX_MINUTES_CRASH_WINDOW = 30     # finestra temporale per il crollo (minuti)
-MIN_STARTING_ODD = 1.50           # quota di partenza minima per considerare il crollo
-MAX_CRASH_ODD = 1.50              # quota finale massima dopo il crollo
+CRASH_THRESHOLD_PERCENT = 25
+MAX_MINUTES_CRASH_WINDOW = 30
+MIN_STARTING_ODD = 1.50
+MAX_CRASH_ODD = 1.50
 
-BOOKMAKER_ID = 1                  # 1 = 1xBet (prova anche 8 per Bet365 se preferisci)
-BET_ID = 1                        # Winner (moneyline)
+BOOKMAKER_ID = 1   # 1xBet (o 8 per Bet365)
+BET_ID = 1         # Match Winner (1X2)
 
-# Leghe minori di basket, attive in estate
+# Leghe minori di calcio (attive in estate? meglio mettere anche scandinave)
 TARGET_LEAGUES = [
-    120,  # Serie A2 Basket (Italia)
-    121,  # Serie B Basket (Italia)
-    212,  # LEB Oro (Spagna)
-    213,  # LEB Plata (Spagna)
-    129,  # ProA (Germania)
-    130,  # ProB (Germania)
-    185,  # LNB Pro B (Francia)
-    56,   # NBB (Brasile) – se ancora in corso
-    319,  # PBA Philippine Cup
-    296,  # Superliga Profesional (Venezuela)
-    55,   # Liga Nacional (Argentina)
-    222,  # Liga Uruguaya
+    135,   # Serie A (tanto per test, poi puoi rimuoverla)
+    136,   # Serie B
+    137,   # Serie C
+    138,   # Serie D
+    141,   # Campionato Primavera 1
+    142,   # Campionato Primavera 2
+    197,   # National League (Inghilterra)
+    198,   # National League North
+    199,   # National League South
+    383,   # Segunda B (Spagna)
+    384,   # Tercera Division
+    127,   # Regionalliga Südwest (Germania)
+    128,   # Regionalliga West
+    130,   # Regionalliga Nord
+    131,   # Regionalliga Bayern
+    62,    # National 1 (Francia)
+    64,    # National 2
+    65,    # National 3
+    471,   # Campeonato de Portugal
+    74,    # Brasileiro Serie C
+    75,    # Brasileiro Serie D
+    129,   # Primera Nacional (Argentina)
+    130,   # Primera B Metropolitana
+    131,   # Primera C
+    132,   # Primera D
+    # --- Campionati estivi scandinavi ---
+    40,    # Allsvenskan (Svezia)
+    41,    # Superettan
+    72,    # Eliteserien (Norvegia)
+    73,    # 1. Divisjon
+    244,   # Veikkausliiga (Finlandia)
+    245,   # Ykkönen
+    360,   # Meistriliiga (Estonia)
+    365,   # Virsliga (Lettonia)
 ]
 
 # ------------------------- FUNZIONI -------------------------
@@ -62,10 +84,10 @@ def save_json(filename: str, data):
 
 def fetch_odds():
     today = date.today().strftime("%Y-%m-%d")
-    url = "https://v1.basketball.api-sports.io/odds"
+    url = "https://v3.football.api-sports.io/odds"
     headers = {
         "x-apisports-key": API_KEY,
-        "x-apisports-host": "v1.basketball.api-sports.io"
+        "x-apisports-host": "v3.football.api-sports.io"
     }
     params = {"date": today, "bookmaker": BOOKMAKER_ID, "bet": BET_ID}
     try:
@@ -91,6 +113,7 @@ def fetch_odds():
             try:
                 odds_values = item["bookmakers"][0]["bets"][0]["values"]
                 odd_home = next((float(o["odd"]) for o in odds_values if o["value"] == "Home"), None)
+                odd_draw = next((float(o["odd"]) for o in odds_values if o["value"] == "Draw"), None)
                 odd_away = next((float(o["odd"]) for o in odds_values if o["value"] == "Away"), None)
             except (IndexError, KeyError, StopIteration):
                 continue
@@ -116,7 +139,6 @@ def check_crashes(state, current_matches, now):
 
     for m in current_matches:
         fid = str(m["fixture_id"])
-        # Salva comunque la nuova quota nello stato
         new_state[fid] = {
             "home": m["home"],
             "away": m["away"],
@@ -135,7 +157,6 @@ def check_crashes(state, current_matches, now):
         except (ValueError, KeyError):
             continue
 
-        # Controlla se la vecchia rilevazione è entro la finestra di crash
         if (now - prev_time) > timedelta(minutes=MAX_MINUTES_CRASH_WINDOW):
             continue
 
@@ -179,7 +200,6 @@ def check_crashes(state, current_matches, now):
 
 def save_bet(bets, alert):
     fid = alert["fixture_id"]
-    # Evita di registrare lo stesso match più volte nello stesso giorno
     for b in bets:
         if b["fixture_id"] == fid and b["side"] == alert["side"]:
             return bets
@@ -196,7 +216,7 @@ def save_bet(bets, alert):
 # ------------------------- MAIN -------------------------
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
-    logging.info("Market Hunter Basket started")
+    logging.info("Market Hunter Calcio started")
 
     state = load_json("state.json")
     bets = load_json("bets.json", [])
@@ -210,7 +230,7 @@ if __name__ == "__main__":
     for alert in alerts:
         message = (
             f"🚨 *CRASH RILEVATO*\n"
-            f"🏀 {alert['league']}\n"
+            f"⚽ {alert['league']}\n"
             f"⚔️ {alert['home']} vs {alert['away']}\n"
             f"📉 Quota {alert['predicted']}: {alert['old_odd']:.2f} → {alert['new_odd']:.2f} (-{alert['drop']}%)\n"
             f"⏱️ Rilevato alle {alert['time']}\n"
@@ -219,7 +239,6 @@ if __name__ == "__main__":
         send_telegram(message)
         bets = save_bet(bets, alert)
 
-    # Salva i nuovi stati
     save_json("state.json", new_state)
     save_json("bets.json", bets)
 
