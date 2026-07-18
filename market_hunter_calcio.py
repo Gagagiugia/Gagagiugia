@@ -15,8 +15,8 @@ API_KEY = os.environ["API_KEY"]
 TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
 TELEGRAM_CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
 
-CRASH_THRESHOLD_PERCENT = 25
-MAX_MINUTES_CRASH_WINDOW = 30
+MAX_HOURS_CRASH_WINDOW = 0.5   # 30 minuti (così confrontiamo due rilevazioni consecutive)
+CRASH_THRESHOLD_PERCENT = 25   # resta al 25% o scendi a 20 se vuoi più sensibilità
 MIN_STARTING_ODD = 1.50
 MAX_CRASH_ODD = 1.50
 
