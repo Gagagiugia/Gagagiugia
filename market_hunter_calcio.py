@@ -20,7 +20,7 @@ MAX_MINUTES_CRASH_WINDOW = 30
 MIN_STARTING_ODD = 1.50
 MAX_CRASH_ODD = 1.50
 
-BOOKMAKER_ID = 1   # 1xBet (o 8 per Bet365)
+BOOKMAKER_ID = 8   # 1xBet (o 8 per Bet365)
 BET_ID = 1         # Match Winner (1X2)
 
 TARGET_LEAGUES = [
@@ -101,8 +101,10 @@ def fetch_odds():
         matches = []
         for item in data.get("response", []):
             league = item.get("league", {})
-            if league.get("id") not in TARGET_LEAGUES:
+            #if league.get("id") not in TARGET_LEAGUES:
                 continue
+            if len(matches) < 5:
+    logging.info(f"DEBUG: {league.get('name')} - {home} vs {away}")
             fixture = item.get("fixture", {})
             fixture_id = fixture.get("id")
             if not fixture_id:
