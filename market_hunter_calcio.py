@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Market Hunter Tennis – The Odds API Edition (Enhanced)
-Doppio bookmaker + filtro orario pre‑partita.
+Market Hunter Calcio – Final Edition
+Doppio bookmaker, filtro orario, pronto per verifica automatica.
 """
 
 import os, json, logging, requests
@@ -16,12 +16,27 @@ CRASH_THRESHOLD_PERCENT = 25
 MAX_MINUTES_CRASH_WINDOW = 30
 MIN_STARTING_ODD = 1.50
 MAX_CRASH_ODD = 1.50
-HOURS_BEFORE_KICKOFF = 2   # ignora partite che iniziano oltre X ore da adesso
+HOURS_BEFORE_KICKOFF = 2   # ignora partite che iniziano oltre 2 ore da adesso
 
+# Campionati minori (elenco già ottimizzato)
 TARGET_SPORT_KEYS = [
-    "tennis_atp_challenger",
-    "tennis_itf_men",
-    "tennis_itf_women",
+    "soccer_italy_serie_c",
+    "soccer_italy_serie_d",
+    "soccer_england_national_league",
+    "soccer_spain_segunda_b",
+    "soccer_germany_regionalliga",
+    "soccer_france_national",
+    "soccer_brazil_campeonato_serie_c",
+    "soccer_brazil_campeonato_serie_d",
+    "soccer_argentina_primera_nacional",
+    "soccer_argentina_primera_b",
+    "soccer_argentina_primera_c",
+    "soccer_sweden_allsvenskan",
+    "soccer_sweden_superettan",
+    "soccer_norway_eliteserien",
+    "soccer_finland_veikkausliiga",
+    "soccer_estonia_meistriliiga",
+    "soccer_latvia_virsliga",
 ]
 
 def send_telegram(text):
@@ -42,8 +57,7 @@ def save_json(filename, data):
     with open(filename, "w") as f:
         json.dump(data, f, indent=2)
 
-def extract_odds_from_bookmaker(bk, home, away):
-    """Restituisce odd_home, odd_away per un bookmaker (h2h)."""
+def extract_odds(bk, home, away):
     for market in bk.get("markets", []):
         if market["key"] == "h2h":
             outcomes = market["outcomes"]
@@ -53,7 +67,7 @@ def extract_odds_from_bookmaker(bk, home, away):
     return None, None
 
 def fetch_odds():
-    url = "https://api.the-odds-api.com/v4/sports/tennis/odds/"
+    url = "https://api.the-odds-api.com/v4/sports/soccer/odds/"
     params = {
         "apiKey": API_KEY,
         "regions": "eu",
@@ -76,10 +90,9 @@ def fetch_odds():
                 continue
             home = game["home_team"]
             away = game["away_team"]
-            commence_time = game.get("commence_time")  # stringa ISO
+            commence_time = game.get("commence_time")
 
             bookmakers = game.get("bookmakers", [])
-            # Cerchiamo Bet365 e un secondo bookmaker (es. Unibet o WilliamHill)
             bk_bet365 = None
             bk_other = None
             for b in bookmakers:
@@ -90,10 +103,10 @@ def fetch_odds():
                     if not bk_other:
                         bk_other = b
             if not bk_bet365 or not bk_other:
-                continue  # servono entrambi
+                continue
 
-            odd_home_b365, odd_away_b365 = extract_odds_from_bookmaker(bk_bet365, home, away)
-            odd_home_other, odd_away_other = extract_odds_from_bookmaker(bk_other, home, away)
+            odd_home_b365, odd_away_b365 = extract_odds(bk_bet365, home, away)
+            odd_home_other, odd_away_other = extract_odds(bk_other, home, away)
             if not all([odd_home_b365, odd_away_b365, odd_home_other, odd_away_other]):
                 continue
 
@@ -119,7 +132,6 @@ def check_crashes(state, current_matches, now):
     threshold_time = now - timedelta(minutes=MAX_MINUTES_CRASH_WINDOW)
 
     for m in current_matches:
-        # Filtro orario: scarta se inizia fra più di HOURS_BEFORE_KICKOFF ore
         if m.get("commence_time"):
             try:
                 kickoff = datetime.fromisoformat(m["commence_time"].replace("Z", "+00:00"))
@@ -129,7 +141,6 @@ def check_crashes(state, current_matches, now):
                 pass
 
         fid = m["fixture_id"]
-        # Salviamo lo stato (media delle quote dei due bookmaker o entrambi separatamente)
         new_state[fid] = {
             "home": m["home"],
             "away": m["away"],
@@ -149,18 +160,14 @@ def check_crashes(state, current_matches, now):
             prev_time = datetime.fromisoformat(prev["timestamp"])
         except:
             continue
-
         if (now - prev_time) > timedelta(minutes=MAX_MINUTES_CRASH_WINDOW):
             continue
 
-        # Calcolo crollo su Bet365
         drop_home_b365 = (prev["odd_home_b365"] - m["odd_home_b365"]) / prev["odd_home_b365"]
         drop_away_b365 = (prev["odd_away_b365"] - m["odd_away_b365"]) / prev["odd_away_b365"]
-        # Calcolo crollo su altro bookmaker
         drop_home_other = (prev["odd_home_other"] - m["odd_home_other"]) / prev["odd_home_other"]
         drop_away_other = (prev["odd_away_other"] - m["odd_away_other"]) / prev["odd_away_other"]
 
-        # Conferma: il crollo deve superare la soglia su ENTRAMBI i bookmaker
         for side, drop_b365, drop_other, old_b365, new_b365 in [
             ("Home", drop_home_b365, drop_home_other, prev["odd_home_b365"], m["odd_home_b365"]),
             ("Away", drop_away_b365, drop_away_other, prev["odd_away_b365"], m["odd_away_b365"])
@@ -174,7 +181,7 @@ def check_crashes(state, current_matches, now):
                     "away": m["away"],
                     "league": m["league"],
                     "side": side,
-                    "old_odd": old_b365,     # mostriamo Bet365
+                    "old_odd": old_b365,
                     "new_odd": new_b365,
                     "drop": round(drop_b365 * 100, 2),
                     "predicted": m["home"] if side == "Home" else m["away"],
@@ -189,6 +196,8 @@ def save_bet(bets, alert):
             return bets
     bets.append({
         "fixture_id": fid,
+        "home_team": alert["home"],
+        "away_team": alert["away"],
         "predicted_winner": alert["predicted"],
         "odd_at_crash": alert["new_odd"],
         "crash_percent": alert["drop"],
@@ -197,24 +206,23 @@ def save_bet(bets, alert):
     })
     return bets
 
-# ---------- MAIN ----------
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
-    logging.info("Market Hunter Tennis (Enhanced) started")
+    logging.info("Market Hunter Calcio (Final) started")
 
-    state = load_json("state_tennis.json")
-    bets = load_json("bets_tennis.json", [])
+    state = load_json("state.json")
+    bets = load_json("bets.json", [])
 
     matches = fetch_odds()
-    logging.info(f"Trovate {len(matches)} partite nei tornei target (dopo filtri)")
+    logging.info(f"Trovate {len(matches)} partite nei campionati target")
 
     now = datetime.now()
     alerts, new_state = check_crashes(state, matches, now)
 
     for alert in alerts:
         message = (
-            f"🚨 *CRASH TENNIS*\n"
-            f"🎾 {alert['league']}\n"
+            f"🚨 *CRASH CALCIO*\n"
+            f"⚽ {alert['league']}\n"
             f"⚔️ {alert['home']} vs {alert['away']}\n"
             f"📉 Quota {alert['predicted']}: {alert['old_odd']:.2f} → {alert['new_odd']:.2f} (-{alert['drop']}%)\n"
             f"⏱️ Rilevato alle {alert['time']}\n"
@@ -223,10 +231,9 @@ if __name__ == "__main__":
         send_telegram(message)
         bets = save_bet(bets, alert)
 
-    save_json("state_tennis.json", new_state)
-    save_json("bets_tennis.json", bets)
+    save_json("state.json", new_state)
+    save_json("bets.json", bets)
 
-    # Riepilogo nel log
     solved = [b for b in bets if b["result"] != "pending"]
     if solved:
         won = sum(1 for b in solved if b["result"] == "won")
