@@ -1,0 +1,34 @@
+name: Check Results Calcio
+
+on:
+  schedule:
+    - cron: '0 21 * * 0'   # domenica alle 21:00 UTC
+  workflow_dispatch:        # ti permette di eseguirlo a mano per i test
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install requests
+      - name: Restore bets cache
+        uses: actions/cache@v4
+        with:
+          path: bets.json
+          key: bets-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: bets-${{ runner.os }}-
+      - name: Run results checker
+        env:
+          API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python results_checker.py
+      - name: Save updated bets
+        uses: actions/cache/save@v4
+        with:
+          path: bets.json
+          key: bets-${{ runner.os }}-${{ github.run_id }}
