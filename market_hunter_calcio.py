@@ -20,7 +20,6 @@ HOURS_BEFORE_KICKOFF = 2   # ignora partite che iniziano oltre 2 ore da adesso
 
 # Campionati minori (elenco già ottimizzato)
 TARGET_SPORT_KEYS = [
-    "soccer_uefa_champions_league",
     "soccer_italy_serie_c",
     "soccer_italy_serie_d",
     "soccer_england_national_league",
