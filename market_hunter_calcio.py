@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
-Market Hunter Calcio – Final Edition
-Lista leghe adattata alla disponibilità reale di oggi 24 luglio 2026.
+Market Hunter Calcio – Final Edition (test senza doppio bookmaker)
 """
 
 import os, json, logging, requests, sys
@@ -11,15 +10,12 @@ API_KEY = os.environ["API_KEY"]
 TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
 TELEGRAM_CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
 
-# Soglie
 CRASH_THRESHOLD_PERCENT = 25
 MAX_MINUTES_CRASH_WINDOW = 30
 MIN_STARTING_ODD = 1.50
 MAX_CRASH_ODD = 1.50
 HOURS_BEFORE_KICKOFF = 2
 
-# Campionati disponibili oggi (dal debug)
-# Nota: in futuro potrai ripristinare la lista completa commentata in fondo.
 TARGET_SPORT_KEYS = [
     "soccer_argentina_primera_division",
     "soccer_denmark_superliga",
@@ -29,27 +25,6 @@ TARGET_SPORT_KEYS = [
     "soccer_russia_premier_league",
     "soccer_sweden_allsvenskan",
 ]
-
-# Lista originale (per i weekend futuri)
-# TARGET_SPORT_KEYS = [
-#     "soccer_italy_serie_c",
-#     "soccer_italy_serie_d",
-#     "soccer_england_national_league",
-#     "soccer_spain_segunda_b",
-#     "soccer_germany_regionalliga",
-#     "soccer_france_national",
-#     "soccer_brazil_campeonato_serie_c",
-#     "soccer_brazil_campeonato_serie_d",
-#     "soccer_argentina_primera_nacional",
-#     "soccer_argentina_primera_b",
-#     "soccer_argentina_primera_c",
-#     "soccer_sweden_allsvenskan",
-#     "soccer_sweden_superettan",
-#     "soccer_norway_eliteserien",
-#     "soccer_finland_veikkausliiga",
-#     "soccer_estonia_meistriliiga",
-#     "soccer_latvia_virsliga",
-# ]
 
 def is_monitoring_window():
     now = datetime.utcnow()
@@ -77,15 +52,6 @@ def save_json(filename, data):
     with open(filename, "w") as f:
         json.dump(data, f, indent=2)
 
-def extract_odds(bk, home, away):
-    for market in bk.get("markets", []):
-        if market["key"] == "h2h":
-            outcomes = market["outcomes"]
-            odd_home = next((o["price"] for o in outcomes if o["name"] == home), None)
-            odd_away = next((o["price"] for o in outcomes if o["name"] == away), None)
-            return odd_home, odd_away
-    return None, None
-
 def fetch_odds():
     url = "https://api.the-odds-api.com/v4/sports/soccer/odds/"
     params = {
@@ -104,6 +70,8 @@ def fetch_odds():
             return []
         data = resp.json()
         matches = []
+        skipped_no_bet365 = 0
+        skipped_no_second = 0
         for game in data:
             sport_key = game.get("sport_key")
             if sport_key not in TARGET_SPORT_KEYS:
@@ -122,12 +90,25 @@ def fetch_odds():
                 elif key in ("unibet", "williamhill", "marathonbet"):
                     if not bk_other:
                         bk_other = b
-            if not bk_bet365 or not bk_other:
-                continue
 
-            odd_home_b365, odd_away_b365 = extract_odds(bk_bet365, home, away)
-            odd_home_other, odd_away_other = extract_odds(bk_other, home, away)
-            if not all([odd_home_b365, odd_away_b365, odd_home_other, odd_away_other]):
+            # ---- DEBUG: conta i motivi di scarto ----
+            if not bk_bet365:
+                skipped_no_bet365 += 1
+                continue
+            if not bk_other:
+                skipped_no_second += 1
+                # COMMENTATO per test: ora usiamo solo bet365
+                # continue
+
+            # Se abbiamo bet365, prendiamo le sue quote
+            odd_home, odd_away = None, None
+            for market in bk_bet365.get("markets", []):
+                if market["key"] == "h2h":
+                    outcomes = market["outcomes"]
+                    odd_home = next((o["price"] for o in outcomes if o["name"] == home), None)
+                    odd_away = next((o["price"] for o in outcomes if o["name"] == away), None)
+                    break
+            if not odd_home or not odd_away:
                 continue
 
             matches.append({
@@ -136,11 +117,11 @@ def fetch_odds():
                 "away": away,
                 "league": game["sport_title"] + " - " + sport_key,
                 "commence_time": commence_time,
-                "odd_home_b365": odd_home_b365,
-                "odd_away_b365": odd_away_b365,
-                "odd_home_other": odd_home_other,
-                "odd_away_other": odd_away_other,
+                "odd_home": odd_home,
+                "odd_away": odd_away,
             })
+
+        logging.info(f"DEBUG: scartate {skipped_no_bet365} per mancanza bet365, {skipped_no_second} per mancanza secondo bookmaker")
         return matches
     except Exception as e:
         logging.error(f"API call failed: {e}")
@@ -165,10 +146,8 @@ def check_crashes(state, current_matches, now):
             "home": m["home"],
             "away": m["away"],
             "league": m["league"],
-            "odd_home_b365": m["odd_home_b365"],
-            "odd_away_b365": m["odd_away_b365"],
-            "odd_home_other": m["odd_home_other"],
-            "odd_away_other": m["odd_away_other"],
+            "odd_home": m["odd_home"],
+            "odd_away": m["odd_away"],
             "timestamp": now.isoformat()
         }
 
@@ -183,28 +162,38 @@ def check_crashes(state, current_matches, now):
         if (now - prev_time) > timedelta(minutes=MAX_MINUTES_CRASH_WINDOW):
             continue
 
-        drop_home_b365 = (prev["odd_home_b365"] - m["odd_home_b365"]) / prev["odd_home_b365"]
-        drop_away_b365 = (prev["odd_away_b365"] - m["odd_away_b365"]) / prev["odd_away_b365"]
-        drop_home_other = (prev["odd_home_other"] - m["odd_home_other"]) / prev["odd_home_other"]
-        drop_away_other = (prev["odd_away_other"] - m["odd_away_other"]) / prev["odd_away_other"]
+        old_home = prev["odd_home"]
+        old_away = prev["odd_away"]
 
-        for side, drop_b365, drop_other, old_b365, new_b365 in [
-            ("Home", drop_home_b365, drop_home_other, prev["odd_home_b365"], m["odd_home_b365"]),
-            ("Away", drop_away_b365, drop_away_other, prev["odd_away_b365"], m["odd_away_b365"])
-        ]:
-            if (old_b365 > MIN_STARTING_ODD and new_b365 < MAX_CRASH_ODD and
-                drop_b365 >= CRASH_THRESHOLD_PERCENT / 100.0 and
-                drop_other >= CRASH_THRESHOLD_PERCENT / 100.0):
+        if old_home > MIN_STARTING_ODD and m["odd_home"] < MAX_CRASH_ODD:
+            drop = (old_home - m["odd_home"]) / old_home
+            if drop >= CRASH_THRESHOLD_PERCENT / 100.0:
                 alerts.append({
                     "fixture_id": fid,
                     "home": m["home"],
                     "away": m["away"],
                     "league": m["league"],
-                    "side": side,
-                    "old_odd": old_b365,
-                    "new_odd": new_b365,
-                    "drop": round(drop_b365 * 100, 2),
-                    "predicted": m["home"] if side == "Home" else m["away"],
+                    "side": "Home",
+                    "old_odd": old_home,
+                    "new_odd": m["odd_home"],
+                    "drop": round(drop * 100, 2),
+                    "predicted": m["home"],
+                    "time": now.strftime("%H:%M:%S")
+                })
+
+        if old_away > MIN_STARTING_ODD and m["odd_away"] < MAX_CRASH_ODD:
+            drop = (old_away - m["odd_away"]) / old_away
+            if drop >= CRASH_THRESHOLD_PERCENT / 100.0:
+                alerts.append({
+                    "fixture_id": fid,
+                    "home": m["home"],
+                    "away": m["away"],
+                    "league": m["league"],
+                    "side": "Away",
+                    "old_odd": old_away,
+                    "new_odd": m["odd_away"],
+                    "drop": round(drop * 100, 2),
+                    "predicted": m["away"],
                     "time": now.strftime("%H:%M:%S")
                 })
     return alerts, new_state
