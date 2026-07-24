@@ -125,6 +125,16 @@ def check_crashes(state, current_matches, now):
                 kickoff = datetime.fromisoformat(m["commence_time"].replace("Z", "+00:00"))
                 if (kickoff - now).total_seconds() > HOURS_BEFORE_KICKOFF * 3600:
                     continue
+              # Filtro: ignora le partite già iniziate da più di 80 minuti
+        if m.get("commence_time"):
+            try:
+                kickoff = datetime.fromisoformat(m["commence_time"].replace("Z", "+00:00"))
+                # Se la partita è già iniziata, calcola da quanti minuti
+                if kickoff < now:
+                    minutes_played = (now - kickoff).total_seconds() / 60
+                    if minutes_played > 80:   # dopo l'80° minuto scarta
+                        continue
+                # Se la partita non è ancora iniziata, il filtro HOURS_BEFORE_KICKOFF già la scarta se inizia tra più di 2 ore
             except:
                 pass
 
