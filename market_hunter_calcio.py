@@ -31,6 +31,16 @@ MIN_STARTING_ODD = 1.50
 MAX_CRASH_ODD = 1.50
 HOURS_BEFORE_KICKOFF = 2   # ignora partite che iniziano oltre 2 ore da adesso
 
+TARGET_SPORT_KEYS = [
+    "soccer_argentina_primera_division",
+    "soccer_denmark_superliga",
+    "soccer_finland_veikkausliiga",
+    "soccer_league_of_ireland",
+    "soccer_poland_ekstraklasa",
+    "soccer_russia_premier_league",
+    "soccer_sweden_allsvenskan",
+]
+
 # Campionati minori (elenco già ottimizzato)
 TARGET_SPORT_KEYS = [
     "soccer_italy_serie_c",
