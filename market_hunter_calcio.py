@@ -1,24 +1,11 @@
 #!/usr/bin/env python3
 """
 Market Hunter Calcio – Final Edition
-Doppio bookmaker, filtro orario, pronto per verifica automatica.
+Lista leghe adattata alla disponibilità reale di oggi 24 luglio 2026.
 """
 
-import os, json, logging, requests
+import os, json, logging, requests, sys
 from datetime import datetime, date, timedelta
-import sys
-
-def is_monitoring_window():
-    """Restituisce True solo se oggi è venerdì, sabato o domenica 
-    e l'ora UTC è tra le 11:00 e le 21:59."""
-    now = datetime.utcnow()
-    # weekday: Monday=0, Sunday=6 -> Friday=4, Saturday=5, Sunday=6
-    if now.weekday() not in (4, 5, 6):
-        return False
-    # ora 11-21 UTC
-    if not (11 <= now.hour <= 21):
-        return False
-    return True
 
 API_KEY = os.environ["API_KEY"]
 TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
@@ -29,8 +16,10 @@ CRASH_THRESHOLD_PERCENT = 25
 MAX_MINUTES_CRASH_WINDOW = 30
 MIN_STARTING_ODD = 1.50
 MAX_CRASH_ODD = 1.50
-HOURS_BEFORE_KICKOFF = 2   # ignora partite che iniziano oltre 2 ore da adesso
+HOURS_BEFORE_KICKOFF = 2
 
+# Campionati disponibili oggi (dal debug)
+# Nota: in futuro potrai ripristinare la lista completa commentata in fondo.
 TARGET_SPORT_KEYS = [
     "soccer_argentina_primera_division",
     "soccer_denmark_superliga",
@@ -41,26 +30,34 @@ TARGET_SPORT_KEYS = [
     "soccer_sweden_allsvenskan",
 ]
 
-# Campionati minori (elenco già ottimizzato)
-TARGET_SPORT_KEYS = [
-    "soccer_italy_serie_c",
-    "soccer_italy_serie_d",
-    "soccer_england_national_league",
-    "soccer_spain_segunda_b",
-    "soccer_germany_regionalliga",
-    "soccer_france_national",
-    "soccer_brazil_campeonato_serie_c",
-    "soccer_brazil_campeonato_serie_d",
-    "soccer_argentina_primera_nacional",
-    "soccer_argentina_primera_b",
-    "soccer_argentina_primera_c",
-    "soccer_sweden_allsvenskan",
-    "soccer_sweden_superettan",
-    "soccer_norway_eliteserien",
-    "soccer_finland_veikkausliiga",
-    "soccer_estonia_meistriliiga",
-    "soccer_latvia_virsliga",
-]
+# Lista originale (per i weekend futuri)
+# TARGET_SPORT_KEYS = [
+#     "soccer_italy_serie_c",
+#     "soccer_italy_serie_d",
+#     "soccer_england_national_league",
+#     "soccer_spain_segunda_b",
+#     "soccer_germany_regionalliga",
+#     "soccer_france_national",
+#     "soccer_brazil_campeonato_serie_c",
+#     "soccer_brazil_campeonato_serie_d",
+#     "soccer_argentina_primera_nacional",
+#     "soccer_argentina_primera_b",
+#     "soccer_argentina_primera_c",
+#     "soccer_sweden_allsvenskan",
+#     "soccer_sweden_superettan",
+#     "soccer_norway_eliteserien",
+#     "soccer_finland_veikkausliiga",
+#     "soccer_estonia_meistriliiga",
+#     "soccer_latvia_virsliga",
+# ]
+
+def is_monitoring_window():
+    now = datetime.utcnow()
+    if now.weekday() not in (4, 5, 6):
+        return False
+    if not (11 <= now.hour <= 21):
+        return False
+    return True
 
 def send_telegram(text):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
@@ -106,12 +103,6 @@ def fetch_odds():
             logging.error(f"HTTP {resp.status_code}: {resp.text}")
             return []
         data = resp.json()
-        
-        # DEBUG: stampa tutte le sport_key ricevute oggi
-        all_keys = set(g.get("sport_key") for g in data)
-        logging.info(f"DEBUG: sport_key presenti nell'API oggi: {sorted(all_keys)}")
-        logging.info(f"DEBUG: partite totali ricevute: {len(data)}")
-        
         matches = []
         for game in data:
             sport_key = game.get("sport_key")
@@ -237,17 +228,13 @@ def save_bet(bets, alert):
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
-    logging.info("Market Hunter Calcio (Final) started")
-
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
 
     if not is_monitoring_window():
-        logging.info("Fuori dalla finestra di monitoraggio (giorno/ora non consentito). Esco.")
+        logging.info("Fuori dalla finestra di monitoraggio. Esco.")
         sys.exit(0)
 
     logging.info("Market Hunter Calcio (Final) started")
-    
+
     state = load_json("state.json")
     bets = load_json("bets.json", [])
 
