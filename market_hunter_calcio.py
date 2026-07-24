@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Market Hunter Calcio – Final Edition (test senza doppio bookmaker)
+Market Hunter Calcio – Final Edition (adattamento bookmaker)
 """
 
 import os, json, logging, requests, sys
@@ -70,8 +70,6 @@ def fetch_odds():
             return []
         data = resp.json()
         matches = []
-        skipped_no_bet365 = 0
-        skipped_no_second = 0
         for game in data:
             sport_key = game.get("sport_key")
             if sport_key not in TARGET_SPORT_KEYS:
@@ -80,29 +78,15 @@ def fetch_odds():
             away = game["away_team"]
             commence_time = game.get("commence_time")
 
+            # Prendiamo il primo bookmaker disponibile (qualunque esso sia)
             bookmakers = game.get("bookmakers", [])
-            bk_bet365 = None
-            bk_other = None
-            for b in bookmakers:
-                key = b["key"]
-                if key == "bet365":
-                    bk_bet365 = b
-                elif key in ("unibet", "williamhill", "marathonbet"):
-                    if not bk_other:
-                        bk_other = b
-
-            # ---- DEBUG: conta i motivi di scarto ----
-            if not bk_bet365:
-                skipped_no_bet365 += 1
+            if not bookmakers:
                 continue
-            if not bk_other:
-                skipped_no_second += 1
-                # COMMENTATO per test: ora usiamo solo bet365
-                # continue
+            bk = bookmakers[0]
 
-            # Se abbiamo bet365, prendiamo le sue quote
-            odd_home, odd_away = None, None
-            for market in bk_bet365.get("markets", []):
+            # Estrai le quote per quel bookmaker
+            odd_home = odd_away = None
+            for market in bk.get("markets", []):
                 if market["key"] == "h2h":
                     outcomes = market["outcomes"]
                     odd_home = next((o["price"] for o in outcomes if o["name"] == home), None)
@@ -119,9 +103,12 @@ def fetch_odds():
                 "commence_time": commence_time,
                 "odd_home": odd_home,
                 "odd_away": odd_away,
+                "bookmaker_used": bk["key"]   # per debug
             })
 
-        logging.info(f"DEBUG: scartate {skipped_no_bet365} per mancanza bet365, {skipped_no_second} per mancanza secondo bookmaker")
+        # Debug: mostra i bookmaker usati
+        bk_used = set(m["bookmaker_used"] for m in matches)
+        logging.info(f"Bookmaker utilizzati oggi: {bk_used}")
         return matches
     except Exception as e:
         logging.error(f"API call failed: {e}")
