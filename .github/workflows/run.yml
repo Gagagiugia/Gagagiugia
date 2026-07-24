@@ -1,8 +1,8 @@
 name: Market Hunter Calcio
 
 on:
-  schedule:
-    - cron: '*/20 * * * *'   # ogni 20 minuti, sempre
+  repository_dispatch:
+    types: [scan]
   workflow_dispatch:
 
 jobs:
