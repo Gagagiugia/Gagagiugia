@@ -70,6 +70,9 @@ def fetch_odds():
             return []
         data = resp.json()
         matches = []
+        # Variabili per debug orari
+        min_start = None
+        max_start = None
         for game in data:
             sport_key = game.get("sport_key")
             if sport_key not in TARGET_SPORT_KEYS:
@@ -77,6 +80,17 @@ def fetch_odds():
             home = game["home_team"]
             away = game["away_team"]
             commence_time = game.get("commence_time")
+
+            # Debug: traccia orario inizio partita
+            if commence_time:
+                try:
+                    kickoff = datetime.fromisoformat(commence_time.replace("Z", "+00:00"))
+                    if min_start is None or kickoff < min_start:
+                        min_start = kickoff
+                    if max_start is None or kickoff > max_start:
+                        max_start = kickoff
+                except:
+                    pass
 
             # Prendiamo il primo bookmaker disponibile (qualunque esso sia)
             bookmakers = game.get("bookmakers", [])
@@ -103,17 +117,21 @@ def fetch_odds():
                 "commence_time": commence_time,
                 "odd_home": odd_home,
                 "odd_away": odd_away,
-                "bookmaker_used": bk["key"]   # per debug
+                "bookmaker_used": bk["key"]
             })
 
-        # Debug: mostra i bookmaker usati
+        # Log degli orari delle partite
+        if min_start and max_start:
+            logging.info(f"ORARI PARTITE: dalle {min_start.strftime('%H:%M')} alle {max_start.strftime('%H:%M')} UTC")
+        else:
+            logging.info("ORARI PARTITE: nessuna partita trovata")
+
         bk_used = set(m["bookmaker_used"] for m in matches)
         logging.info(f"Bookmaker utilizzati oggi: {bk_used}")
         return matches
     except Exception as e:
         logging.error(f"API call failed: {e}")
         return []
-
 def check_crashes(state, current_matches, now):
     alerts = []
     new_state = {}
