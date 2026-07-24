@@ -2,9 +2,7 @@ name: Market Hunter Calcio
 
 on:
   schedule:
-    - cron: '*/20 11-21 * * 5'   # Venerdì
-    - cron: '*/20 11-21 * * 6'   # Sabato
-    - cron: '*/20 11-21 * * 0'   # Domenica
+    - cron: '*/20 11-21 * * 0,5,6'   # domenica(0), venerdì(5), sabato(6)
   workflow_dispatch:
 
 jobs:
