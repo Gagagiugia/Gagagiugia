@@ -2,7 +2,7 @@ name: Market Hunter Calcio
 
 on:
   schedule:
-    - cron: '*/20 11-21 * * 0,5,6'   # domenica(0), venerdì(5), sabato(6)
+    - cron: '*/20 * * * *'   # ogni 20 minuti, sempre
   workflow_dispatch:
 
 jobs:
@@ -10,14 +10,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
       - name: Install dependencies
         run: pip install requests
-
       - name: Restore state cache
         uses: actions/cache@v4
         id: cache
@@ -28,14 +25,12 @@ jobs:
           key: market-hunter-${{ runner.os }}-${{ github.run_id }}
           restore-keys: |
             market-hunter-${{ runner.os }}-
-
       - name: Run scanner
         env:
           API_KEY: ${{ secrets.API_KEY }}
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python market_hunter_calcio.py
-
       - name: Save updated state cache
         uses: actions/cache/save@v4
         if: always()
