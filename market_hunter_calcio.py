@@ -6,6 +6,19 @@ Doppio bookmaker, filtro orario, pronto per verifica automatica.
 
 import os, json, logging, requests
 from datetime import datetime, date, timedelta
+import sys
+
+def is_monitoring_window():
+    """Restituisce True solo se oggi è venerdì, sabato o domenica 
+    e l'ora UTC è tra le 11:00 e le 21:59."""
+    now = datetime.utcnow()
+    # weekday: Monday=0, Sunday=6 -> Friday=4, Saturday=5, Sunday=6
+    if now.weekday() not in (4, 5, 6):
+        return False
+    # ora 11-21 UTC
+    if not (11 <= now.hour <= 21):
+        return False
+    return True
 
 API_KEY = os.environ["API_KEY"]
 TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
@@ -210,6 +223,15 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
     logging.info("Market Hunter Calcio (Final) started")
 
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
+
+    if not is_monitoring_window():
+        logging.info("Fuori dalla finestra di monitoraggio (giorno/ora non consentito). Esco.")
+        sys.exit(0)
+
+    logging.info("Market Hunter Calcio (Final) started")
+    
     state = load_json("state.json")
     bets = load_json("bets.json", [])
 
