@@ -132,6 +132,7 @@ def fetch_odds():
     except Exception as e:
         logging.error(f"API call failed: {e}")
         return []
+        
 def check_crashes(state, current_matches, now):
     alerts = []
     new_state = {}
