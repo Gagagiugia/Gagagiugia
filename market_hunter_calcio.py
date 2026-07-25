@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Market Hunter Calcio – Final Edition (adattamento bookmaker)
+Market Hunter Calcio – Final Edition (con debug orari)
 """
 
 import os, json, logging, requests, sys
@@ -70,7 +70,6 @@ def fetch_odds():
             return []
         data = resp.json()
         matches = []
-        # Variabili per debug orari
         min_start = None
         max_start = None
         for game in data:
@@ -81,7 +80,6 @@ def fetch_odds():
             away = game["away_team"]
             commence_time = game.get("commence_time")
 
-            # Debug: traccia orario inizio partita
             if commence_time:
                 try:
                     kickoff = datetime.fromisoformat(commence_time.replace("Z", "+00:00"))
@@ -92,13 +90,11 @@ def fetch_odds():
                 except:
                     pass
 
-            # Prendiamo il primo bookmaker disponibile (qualunque esso sia)
             bookmakers = game.get("bookmakers", [])
             if not bookmakers:
                 continue
             bk = bookmakers[0]
 
-            # Estrai le quote per quel bookmaker
             odd_home = odd_away = None
             for market in bk.get("markets", []):
                 if market["key"] == "h2h":
@@ -120,7 +116,6 @@ def fetch_odds():
                 "bookmaker_used": bk["key"]
             })
 
-        # Log degli orari delle partite
         if min_start and max_start:
             logging.info(f"ORARI PARTITE: dalle {min_start.strftime('%H:%M')} alle {max_start.strftime('%H:%M')} UTC")
         else:
@@ -132,7 +127,7 @@ def fetch_odds():
     except Exception as e:
         logging.error(f"API call failed: {e}")
         return []
-        
+
 def check_crashes(state, current_matches, now):
     alerts = []
     new_state = {}
@@ -144,16 +139,6 @@ def check_crashes(state, current_matches, now):
                 kickoff = datetime.fromisoformat(m["commence_time"].replace("Z", "+00:00"))
                 if (kickoff - now).total_seconds() > HOURS_BEFORE_KICKOFF * 3600:
                     continue
-              # Filtro: ignora le partite già iniziate da più di 80 minuti
-        if m.get("commence_time"):
-            try:
-                kickoff = datetime.fromisoformat(m["commence_time"].replace("Z", "+00:00"))
-                # Se la partita è già iniziata, calcola da quanti minuti
-                if kickoff < now:
-                    minutes_played = (now - kickoff).total_seconds() / 60
-                    if minutes_played > 80:   # dopo l'80° minuto scarta
-                        continue
-                # Se la partita non è ancora iniziata, il filtro HOURS_BEFORE_KICKOFF già la scarta se inizia tra più di 2 ore
             except:
                 pass
 
