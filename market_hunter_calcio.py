@@ -30,7 +30,7 @@ def is_monitoring_window():
     now = datetime.utcnow()
     if now.weekday() not in (4, 5, 6):
         return False
-    if not (11 <= now.hour <= 21):
+    if not (14 <= now.hour <= 21):
         return False
     return True
 
