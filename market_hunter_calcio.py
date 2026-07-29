@@ -291,8 +291,8 @@ if __name__ == "__main__":
     now = datetime.now()
     alerts, new_state = check_crashes(state, matches, now)
 
-    for alert in alerts:
-                if alert.get("alert_type") == "pre_alert":
+        for alert in alerts:
+        if alert.get("alert_type") == "pre_alert":
             message = (
                 f"⚠️ *MOVIMENTO SOSPETTO*\n"
                 f"⚽ {alert['league']}\n"
@@ -323,4 +323,5 @@ if __name__ == "__main__":
     else:
         logging.info("Nessun bet risolto ancora.")
 
+    logging.info(f"Inviate {len(alerts)} notifiche. Stato salvato.")
     logging.info(f"Inviate {len(alerts)} notifiche. Stato salvato.")
