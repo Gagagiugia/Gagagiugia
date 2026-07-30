@@ -103,6 +103,7 @@ def fetch_odds():
                 "commence_time": commence_time,
                 "odd_home": odd_home,
                 "odd_away": odd_away,
+                "odd_draw": odd_draw,
             })
         return matches
     except Exception as e:
