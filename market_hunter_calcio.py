@@ -167,6 +167,7 @@ def check_crashes(state, current_matches, now):
                             "predicted": m["home"],
                             "time": now.strftime("%H:%M:%S"),
                             "alert_type": "definitive"
+                            "odd_draw": m.get("odd_draw")
                         })
                 else:
                     alerts.append({
