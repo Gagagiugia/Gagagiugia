@@ -182,6 +182,7 @@ def check_crashes(state, current_matches, now):
                         "predicted": m["home"],
                         "time": now.strftime("%H:%M:%S"),
                         "alert_type": "pre_alert"
+                        "odd_draw": m.get("odd_draw")
                     })
 
         # Lato Away
@@ -202,6 +203,7 @@ def check_crashes(state, current_matches, now):
                             "predicted": m["away"],
                             "time": now.strftime("%H:%M:%S"),
                             "alert_type": "definitive"
+                            "odd_draw": m.get("odd_draw")
                         })
                 else:
                     alerts.append({
@@ -216,6 +218,7 @@ def check_crashes(state, current_matches, now):
                         "predicted": m["away"],
                         "time": now.strftime("%H:%M:%S"),
                         "alert_type": "pre_alert"
+                        "odd_draw": m.get("odd_draw")
                     })
     return alerts, new_state
 
