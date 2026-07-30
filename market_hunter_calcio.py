@@ -91,6 +91,7 @@ def fetch_odds():
                     outcomes = market["outcomes"]
                     odd_home = next((o["price"] for o in outcomes if o["name"] == home), None)
                     odd_away = next((o["price"] for o in outcomes if o["name"] == away), None)
+                    odd_draw = next((o["price"] for o in outcomes if o["name"] == "Draw"), None)
                     break
             if not odd_home or not odd_away:
                 continue
