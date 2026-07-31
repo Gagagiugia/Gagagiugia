@@ -132,7 +132,8 @@ def check_crashes(state, current_matches, now):
             "league": m["league"],
             "odd_home": m["odd_home"],
             "odd_away": m["odd_away"],
-            "timestamp": now.isoformat()
+            "timestamp": now.isoformat(),
+            "pre_alert_sent": False
         }
 
         if fid not in state:
