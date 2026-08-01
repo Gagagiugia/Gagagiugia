@@ -22,6 +22,7 @@ jobs:
           path: |
             state.json
             bets.json
+            bets_log.csv
           key: market-hunter-${{ runner.os }}-${{ github.run_id }}
           restore-keys: |
             market-hunter-${{ runner.os }}-
@@ -38,4 +39,11 @@ jobs:
           path: |
             state.json
             bets.json
+            bets_log.csv
           key: ${{ steps.cache.outputs.cache-primary-key }}
+      - name: Upload CSV artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bets-log
+          path: bets_log.csv
