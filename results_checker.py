@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Recupera i risultati delle partite tramite API‑Football e aggiorna bets.json.
+Recupera i risultati delle partite tramite API‑Football, aggiorna bets.json e bets_log.csv.
 Invia report Telegram.
 """
 
-import os, json, logging, requests
+import os, json, csv, logging, requests
 from datetime import date
 
 API_FOOTBALL_KEY = os.environ["API_FOOTBALL_KEY"]
@@ -45,17 +45,60 @@ def get_results():
             fid = match["fixture"]["id"]
             goals = match["goals"]
             if goals["home"] is not None and goals["away"] is not None:
-                if goals["home"] > goals["away"]:
+                home_score = goals["home"]
+                away_score = goals["away"]
+                if home_score > away_score:
                     winner = match["teams"]["home"]["name"]
-                elif goals["away"] > goals["home"]:
+                elif away_score > home_score:
                     winner = match["teams"]["away"]["name"]
                 else:
                     winner = "draw"
-                results[fid] = winner
+                results[fid] = {
+                    "winner": winner,
+                    "score": f"{home_score}-{away_score}"
+                }
         return results
     except Exception as e:
         logging.error(f"Error fetching results: {e}")
         return {}
+
+def update_csv_with_results(bets, results):
+    filename = "bets_log.csv"
+    if not os.path.isfile(filename):
+        logging.info("bets_log.csv non trovato, nessun aggiornamento CSV.")
+        return
+    rows = []
+    with open(filename, "r", newline="") as f:
+        reader = csv.reader(f)
+        rows = list(reader)
+
+    if not rows:
+        return
+    header = rows[0]
+    # Trova gli indici delle colonne (flessibile se cambiassero posizione)
+    try:
+        idx_id = header.index("fixture_id")
+        idx_score = header.index("Risultato reale")
+        idx_esito = header.index("Esito")
+    except ValueError:
+        logging.error("Colonne mancanti nel CSV, impossibile aggiornare.")
+        return
+
+    for b in bets:
+        fid = str(b.get("fixture_id", ""))
+        if fid not in results:
+            continue
+        result_info = results[fid]
+        for i, row in enumerate(rows[1:], start=1):
+            if row[idx_id] == fid and row[idx_esito] == "":
+                rows[i][idx_score] = result_info["score"]
+                rows[i][idx_esito] = b["result"]   # "won" o "lost"
+                break
+
+    with open(filename, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerows(rows)
+    logging.info(f"CSV aggiornato con {len(bets)} risultati.")
 
 def main():
     bets = load_json("bets.json", [])
@@ -69,7 +112,7 @@ def main():
     for b in pending:
         fid = b["fixture_id"]
         if fid in results:
-            actual = results[fid]
+            actual = results[fid]["winner"]
             if actual == "draw":
                 b["result"] = "lost"
             else:
@@ -78,6 +121,7 @@ def main():
 
     if updated > 0:
         save_json("bets.json", bets)
+        update_csv_with_results(pending, results)   # passa i bet aggiornati e i risultati
         won = sum(1 for b in bets if b["result"] == "won")
         lost = sum(1 for b in bets if b["result"] == "lost")
         total = won + lost
