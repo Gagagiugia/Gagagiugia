@@ -172,42 +172,43 @@ def check_crashes(state, current_matches, now):
                     })
             elif drop >= PRE_CRASH_THRESHOLD_PERCENT / 100.0:
                 if not prev.get("pre_alert_sent"):
-                    alerts.append({
-                        "fixture_id": fid,
-                        "home": m["home"],
-                        "away": m["away"],
-                        "league": m["league"],
-                        "side": "Home",
-                        "old_odd": old_home,
-                        "new_odd": m["odd_home"],
-                        "drop": round(drop * 100, 2),
-                        "predicted": m["home"],
-                        "time": now.strftime("%H:%M:%S"),
-                        "alert_type": "pre_alert",
-                        "odd_draw": m.get("odd_draw")
-                    })
-                    new_state[fid]["pre_alert_sent"] = True
-
+                    if m["odd_home"] >= QUOTA_MINIMA_DOPO_CRASH:   # <-- NUOVA RIGA
+                        alerts.append({
+                            "fixture_id": fid,
+                            "home": m["home"],
+                            "away": m["away"],
+                            "league": m["league"],
+                            "side": "Home",
+                            "old_odd": old_home,
+                            "new_odd": m["odd_home"],
+                            "drop": round(drop * 100, 2),
+                            "predicted": m["home"],
+                            "time": now.strftime("%H:%M:%S"),
+                            "alert_type": "pre_alert",
+                            "odd_draw": m.get("odd_draw")
+                        })
+                        new_state[fid]["pre_alert_sent"] = True
         # Lato Away
         if old_away > MIN_STARTING_ODD and m["odd_away"] < MAX_CRASH_ODD:
             drop = (old_away - m["odd_away"]) / old_away
             if drop >= PRE_CRASH_THRESHOLD_PERCENT / 100.0:
                 if not prev.get("pre_alert_sent"):
-                    alerts.append({
-                        "fixture_id": fid,
-                        "home": m["home"],
-                        "away": m["away"],
-                        "league": m["league"],
-                        "side": "Away",
-                        "old_odd": old_away,
-                        "new_odd": m["odd_away"],
-                        "drop": round(drop * 100, 2),
-                        "predicted": m["away"],
-                        "time": now.strftime("%H:%M:%S"),
-                        "alert_type": "pre_alert",
-                        "odd_draw": m.get("odd_draw")
-                    })
-                    new_state[fid]["pre_alert_sent"] = True
+                    if m["odd_away"] >= QUOTA_MINIMA_DOPO_CRASH:   # <-- NUOVA RIGA
+                        alerts.append({
+                            "fixture_id": fid,
+                            "home": m["home"],
+                            "away": m["away"],
+                            "league": m["league"],
+                            "side": "Away",
+                            "old_odd": old_away,
+                            "new_odd": m["odd_away"],
+                            "drop": round(drop * 100, 2),
+                            "predicted": m["away"],
+                            "time": now.strftime("%H:%M:%S"),
+                            "alert_type": "pre_alert",
+                            "odd_draw": m.get("odd_draw")
+                        })
+                        new_state[fid]["pre_alert_sent"] = True
                 if drop >= FULL_CRASH_THRESHOLD_PERCENT / 100.0 and prev.get("pre_alert_sent") and not prev.get("alert_sent"):
                     if m["odd_away"] >= QUOTA_MINIMA_DOPO_CRASH:
                         alerts.append({
