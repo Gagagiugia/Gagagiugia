@@ -32,7 +32,7 @@ def is_monitoring_window():
     now = datetime.utcnow()
     if now.weekday() != 4:   # venerdì
         return False
-    if not (17 <= now.hour < 22):
+    if not (12 <= now.hour < 20):
         return False
     return True
 
