@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Market Hunter Calcio – Venerdì Edition (con salvataggio CSV automatico)
+Market Hunter Calcio – Venerdì Edition (con salvataggio CSV, regola pareggio e filtro anti‑contraddittorio)
 """
 
 import os, json, csv, logging, requests, sys
@@ -17,6 +17,8 @@ MIN_STARTING_ODD = 1.80
 MAX_CRASH_ODD = 1.80
 QUOTA_MINIMA_DOPO_CRASH = 1.30
 HOURS_BEFORE_KICKOFF = 2
+PAREGGIO_QUOTA_SOGLIA = 3.8   # nuova soglia per suggerire il pareggio
+AMBIGUOUS_MINUTES = 30         # finestra anti‑contraddittorio in minuti
 
 TARGET_SPORT_KEYS = [
     "soccer_argentina_primera_division",
@@ -135,7 +137,10 @@ def check_crashes(state, current_matches, now):
             "odd_away": m["odd_away"],
             "timestamp": now.isoformat(),
             "pre_alert_sent": prev.get("pre_alert_sent", False),
-            "alert_sent": prev.get("alert_sent", False)
+            "alert_sent": prev.get("alert_sent", False),
+            # nuovi campi per filtro anti‑contraddittorio
+            "last_side": prev.get("last_side"),
+            "last_alert_time": prev.get("last_alert_time")
         }
 
         if fid not in state:
@@ -151,98 +156,97 @@ def check_crashes(state, current_matches, now):
         old_home = prev["odd_home"]
         old_away = prev["odd_away"]
 
+        # Funzione per aggiungere un alert con marcatura di ambiguità
+        def append_alert(side, odd_old, odd_new, drop, predicted, alert_type):
+            ambiguous = False
+            last_side = prev.get("last_side")
+            last_time_str = prev.get("last_alert_time")
+            if last_side and last_side != side:
+                if last_time_str:
+                    try:
+                        last_time = datetime.fromisoformat(last_time_str)
+                        if (now - last_time) <= timedelta(minutes=AMBIGUOUS_MINUTES):
+                            ambiguous = True
+                    except:
+                        pass
+            alert = {
+                "fixture_id": fid,
+                "home": m["home"],
+                "away": m["away"],
+                "league": m["league"],
+                "side": side,
+                "old_odd": odd_old,
+                "new_odd": odd_new,
+                "drop": round(drop * 100, 2),
+                "predicted": predicted,
+                "time": now.strftime("%H:%M:%S"),
+                "alert_type": alert_type,
+                "odd_draw": m.get("odd_draw"),
+                "ambiguous": ambiguous
+            }
+            alerts.append(alert)
+            # aggiorna lo stato per il prossimo giro
+            new_state[fid]["last_side"] = side
+            new_state[fid]["last_alert_time"] = now.isoformat()
+            # Se è un alert pareggio? No, lo aggiungiamo dopo.
+
         # Lato Home
         if old_home > MIN_STARTING_ODD and m["odd_home"] < MAX_CRASH_ODD:
             drop = (old_home - m["odd_home"]) / old_home
             if drop >= FULL_CRASH_THRESHOLD_PERCENT / 100.0:
                 if m["odd_home"] >= QUOTA_MINIMA_DOPO_CRASH:
-                    alerts.append({
-                        "fixture_id": fid,
-                        "home": m["home"],
-                        "away": m["away"],
-                        "league": m["league"],
-                        "side": "Home",
-                        "old_odd": old_home,
-                        "new_odd": m["odd_home"],
-                        "drop": round(drop * 100, 2),
-                        "predicted": m["home"],
-                        "time": now.strftime("%H:%M:%S"),
-                        "alert_type": "definitive",
-                        "odd_draw": m.get("odd_draw")
-                    })
+                    append_alert("Home", old_home, m["odd_home"], drop, m["home"], "definitive")
             elif drop >= PRE_CRASH_THRESHOLD_PERCENT / 100.0:
                 if not prev.get("pre_alert_sent"):
-                    if m["odd_home"] >= QUOTA_MINIMA_DOPO_CRASH:   # <-- NUOVA RIGA
-                        alerts.append({
-                            "fixture_id": fid,
-                            "home": m["home"],
-                            "away": m["away"],
-                            "league": m["league"],
-                            "side": "Home",
-                            "old_odd": old_home,
-                            "new_odd": m["odd_home"],
-                            "drop": round(drop * 100, 2),
-                            "predicted": m["home"],
-                            "time": now.strftime("%H:%M:%S"),
-                            "alert_type": "pre_alert",
-                            "odd_draw": m.get("odd_draw")
-                        })
+                    if m["odd_home"] >= QUOTA_MINIMA_DOPO_CRASH:
+                        append_alert("Home", old_home, m["odd_home"], drop, m["home"], "pre_alert")
                         new_state[fid]["pre_alert_sent"] = True
+
         # Lato Away
         if old_away > MIN_STARTING_ODD and m["odd_away"] < MAX_CRASH_ODD:
             drop = (old_away - m["odd_away"]) / old_away
-            if drop >= PRE_CRASH_THRESHOLD_PERCENT / 100.0:
+            if drop >= FULL_CRASH_THRESHOLD_PERCENT / 100.0:
+                if m["odd_away"] >= QUOTA_MINIMA_DOPO_CRASH:
+                    append_alert("Away", old_away, m["odd_away"], drop, m["away"], "definitive")
+            elif drop >= PRE_CRASH_THRESHOLD_PERCENT / 100.0:
                 if not prev.get("pre_alert_sent"):
-                    if m["odd_away"] >= QUOTA_MINIMA_DOPO_CRASH:   # <-- NUOVA RIGA
-                        alerts.append({
-                            "fixture_id": fid,
-                            "home": m["home"],
-                            "away": m["away"],
-                            "league": m["league"],
-                            "side": "Away",
-                            "old_odd": old_away,
-                            "new_odd": m["odd_away"],
-                            "drop": round(drop * 100, 2),
-                            "predicted": m["away"],
-                            "time": now.strftime("%H:%M:%S"),
-                            "alert_type": "pre_alert",
-                            "odd_draw": m.get("odd_draw")
-                        })
-                        new_state[fid]["pre_alert_sent"] = True
-                if drop >= FULL_CRASH_THRESHOLD_PERCENT / 100.0 and prev.get("pre_alert_sent") and not prev.get("alert_sent"):
                     if m["odd_away"] >= QUOTA_MINIMA_DOPO_CRASH:
-                        alerts.append({
-                            "fixture_id": fid,
-                            "home": m["home"],
-                            "away": m["away"],
-                            "league": m["league"],
-                            "side": "Away",
-                            "old_odd": old_away,
-                            "new_odd": m["odd_away"],
-                            "drop": round(drop * 100, 2),
-                            "predicted": m["away"],
-                            "time": now.strftime("%H:%M:%S"),
-                            "alert_type": "definitive",
-                            "odd_draw": m.get("odd_draw")
-                        })
-                        new_state[fid]["alert_sent"] = True
+                        append_alert("Away", old_away, m["odd_away"], drop, m["away"], "pre_alert")
+                        new_state[fid]["pre_alert_sent"] = True
 
-    return alerts, new_state
+    # Aggiunge eventuali segnalazioni pareggio per gli alert vittoria con quota pareggio >= soglia
+    final_alerts = []
+    for alert in alerts:
+        final_alerts.append(alert)
+        odd_draw = alert.get("odd_draw")
+        if odd_draw and isinstance(odd_draw, (int, float)) and odd_draw >= PAREGGIO_QUOTA_SOGLIA:
+            # Crea un alert pareggio separato
+            pareggio_alert = alert.copy()
+            pareggio_alert["alert_type"] = "pareggio"
+            pareggio_alert["predicted"] = "Pareggio"
+            pareggio_alert["side"] = "Draw"
+            final_alerts.append(pareggio_alert)
+
+    return final_alerts, new_state
 
 def save_bet(bets, alert):
     fid = alert["fixture_id"]
+    side = alert.get("side")
     for b in bets:
-        if b["fixture_id"] == fid and b["side"] == alert["side"]:
+        if b["fixture_id"] == fid and b["side"] == side and b["predicted_winner"] == alert["predicted"]:
             return bets
     bets.append({
         "fixture_id": fid,
         "home_team": alert["home"],
         "away_team": alert["away"],
         "predicted_winner": alert["predicted"],
-        "odd_at_crash": alert["new_odd"],
-        "crash_percent": alert["drop"],
+        "odd_at_crash": alert["new_odd"] if alert["alert_type"] != "pareggio" else alert.get("odd_draw"),
+        "crash_percent": alert["drop"] if alert["alert_type"] != "pareggio" else 0,
         "timestamp": datetime.now().isoformat(),
-        "result": "pending"
+        "result": "pending",
+        "tipo": alert["alert_type"],
+        "suggerimento_pareggio": "Sì" if alert["alert_type"] == "pareggio" else "No",
+        "ambiguous": alert.get("ambiguous", False)
     })
     return bets
 
@@ -256,7 +260,7 @@ def log_bet_to_csv(alert, filename="bets_log.csv"):
                 "fixture_id", "Data", "Ora", "Tipo", "Campionato",
                 "Squadra casa", "Squadra ospite", "Pronostico",
                 "Quota prima", "Quota dopo", "Calo %",
-                "Quota pareggio", "Risultato reale", "Esito"
+                "Quota pareggio", "Suggerimento pareggio", "Risultato reale", "Esito", "Ambiguità"
             ])
         writer.writerow([
             alert.get("fixture_id", ""),
@@ -271,8 +275,10 @@ def log_bet_to_csv(alert, filename="bets_log.csv"):
             f'{alert["new_odd"]:.2f}',
             alert["drop"],
             alert.get("odd_draw", "N/D"),
+            "Sì" if alert["alert_type"] == "pareggio" else "No",
             "",   # risultato reale
-            ""    # esito
+            "",   # esito
+            "Sì" if alert.get("ambiguous") else "No"
         ])
 
 if __name__ == "__main__":
@@ -294,7 +300,26 @@ if __name__ == "__main__":
     alerts, new_state = check_crashes(state, matches, now)
 
     for alert in alerts:
-        if alert.get("alert_type") == "pre_alert":
+        if alert["alert_type"] == "pareggio":
+            message = (
+                f"🟡 *PAREGGIO SOSPETTO*\n"
+                f"⚽ {alert['league']}\n"
+                f"⚔️ {alert['home']} vs {alert['away']}\n"
+                f"🤝 Quota pareggio: {alert.get('odd_draw', 'N/D')}\n"
+                f"⏱️ Rilevato alle {alert['time']}\n"
+                f"🔮 Possibile pareggio da valutare"
+            )
+        elif alert.get("ambiguous"):
+            message = (
+                f"⚠️ *SEGNALE CONTRADDITTORIO*\n"
+                f"⚽ {alert['league']}\n"
+                f"⚔️ {alert['home']} vs {alert['away']}\n"
+                f"📉 Quota {alert['predicted']}: {alert['old_odd']:.2f} → {alert['new_odd']:.2f} (-{alert['drop']}%)\n"
+                f"🤝 Quota pareggio: {alert.get('odd_draw', 'N/D')}\n"
+                f"⏱️ Rilevato alle {alert['time']}\n"
+                f"🔮 Valuta con cautela"
+            )
+        elif alert["alert_type"] == "pre_alert":
             message = (
                 f"⚠️ *MOVIMENTO SOSPETTO*\n"
                 f"⚽ {alert['league']}\n"
