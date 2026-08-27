@@ -21,7 +21,7 @@ PAREGGIO_QUOTA_SOGLIA = 3.8   # nuova soglia per suggerire il pareggio
 AMBIGUOUS_MINUTES = 30         # finestra anti‑contraddittorio in minuti
 
 TARGET_SPORT_KEYS = [
-    "soccer_argentina_primera_division",
+    # Europa Settentrionale e Centrale
     "soccer_denmark_superliga",
     "soccer_finland_veikkausliiga",
     "soccer_league_of_ireland",
@@ -30,14 +30,8 @@ TARGET_SPORT_KEYS = [
     "soccer_sweden_allsvenskan",
     "soccer_norway_eliteserien",
     "soccer_sweden_superettan",
-    "soccer_brazil_campeonato",
-    "soccer_japan_j_league",
-    "soccer_spain_segunda_division",
-    "soccer_germany_bundesliga_women",
-    "soccer_germany_dfb_pokal",
-    "soccer_saudi_arabia_pro_league",
-    "soccer_australia_aleague",
-    "soccer_usa_mls",
+
+    # Europa Orientale e Balcani
     "soccer_latvia_virsliga",
     "soccer_lithuania_a_lyga",
     "soccer_estonia_meistriliiga",
@@ -52,6 +46,13 @@ TARGET_SPORT_KEYS = [
     "soccer_romania_liga_1",
     "soccer_serbia_super_liga",
     "soccer_croatia_hnl",
+
+    # Sud America e altre regioni a rischio
+    "soccer_argentina_primera_division",
+    "soccer_brazil_campeonato",
+    "soccer_spain_segunda_division",   # seconda divisione spagnola, non la Liga
+    "soccer_germany_dfb_pokal",        # coppa nazionale tedesca (spesso partite minori)
+    "soccer_saudi_arabia_pro_league",  # lega con attenzione crescente
 ]
 
 def is_monitoring_window():
