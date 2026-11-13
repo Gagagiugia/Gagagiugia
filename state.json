@@ -1,15 +1,1 @@
-{
-  "fed29050dc7e99c7dd6b3b4580f142b7": {
-    "home": "Legan\u00e9s",
-    "away": "Burgos CF",
-    "league": "La Liga 2 - Spain - soccer_spain_segunda_division",
-    "odd_home": 2.35,
-    "odd_away": 3.05,
-    "commence_time": "2026-11-13T19:30:00Z",
-    "timestamp": "2026-11-13T15:50:44.611505",
-    "pre_alert_sent": false,
-    "alert_sent": false,
-    "last_side": null,
-    "last_alert_time": null
-  }
-}
+{}
