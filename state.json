@@ -1,4 +1,17 @@
 {
+  "03a1ad22bba5384565fc8a60cb546a04": {
+    "home": "FK Rostov",
+    "away": "Kryliya Sovetov",
+    "league": "Premier League - Russia - soccer_russia_premier_league",
+    "odd_home": 2.26,
+    "odd_away": 3.57,
+    "commence_time": "2026-11-20T16:30:00Z",
+    "timestamp": "2026-11-20T16:50:48.866546+00:00",
+    "pre_alert_sent": false,
+    "alert_sent": false,
+    "last_side": null,
+    "last_alert_time": null
+  },
   "02d5f40630d0280cd520175f22b7a25c": {
     "home": "AGF Aarhus",
     "away": "Lyngby",
@@ -6,7 +19,7 @@
     "odd_home": 1.66,
     "odd_away": 4.9,
     "commence_time": "2026-11-20T18:00:00Z",
-    "timestamp": "2026-11-20T16:45:41.678306+00:00",
+    "timestamp": "2026-11-20T16:50:48.866546+00:00",
     "pre_alert_sent": false,
     "alert_sent": false,
     "last_side": null,
@@ -19,7 +32,7 @@
     "odd_home": 3.6,
     "odd_away": 1.64,
     "commence_time": "2026-11-20T18:00:00Z",
-    "timestamp": "2026-11-20T16:45:41.678306+00:00",
+    "timestamp": "2026-11-20T16:50:48.866546+00:00",
     "pre_alert_sent": false,
     "alert_sent": false,
     "last_side": null,
