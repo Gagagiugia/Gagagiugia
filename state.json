@@ -1,1 +1,15 @@
-{}
+{
+  "03a1ad22bba5384565fc8a60cb546a04": {
+    "home": "FK Rostov",
+    "away": "Kryliya Sovetov",
+    "league": "Premier League - Russia - soccer_russia_premier_league",
+    "odd_home": 2.5,
+    "odd_away": 3.18,
+    "commence_time": "2026-11-20T16:30:00Z",
+    "timestamp": "2026-11-20T14:31:05.878848+00:00",
+    "pre_alert_sent": false,
+    "alert_sent": false,
+    "last_side": null,
+    "last_alert_time": null
+  }
+}
